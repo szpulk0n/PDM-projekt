@@ -67,8 +67,14 @@ public:
   };
 
 protected:
-  //TODO - header fields, e.g.:
-  uint8_t  m_SB;
+  uint8_t  m_SB;  // Sync Byte
+  uint8_t  m_E;   // Transport Error Indicator
+  uint8_t  m_S;   // Payload Unit Start Indicator
+  uint8_t  m_T;   // Transport Priority
+  uint16_t m_PID; // Packet Identifier
+  uint8_t  m_TSC; // Transport Scrambling Control
+  uint8_t  m_AFC; // Adaptation Field Control
+  uint8_t  m_CC;  // Continuity Counter
 
 public:
   void     Reset();
@@ -76,13 +82,21 @@ public:
   void     Print() const;
 
 public:
-  //TODO - direct acces to header field value, e.g.:
-  uint8_t  getSyncByte() const { return m_SB; }  
+  //Done - direct acces to header field value, e.g.:
+  // Gettery
+  uint8_t  getSyncByte() const { return m_SB; }
+  uint8_t  getTransportErrorIndicator() const { return m_E; }
+  uint8_t  getPayloadUnitStartIndicator() const { return m_S; }
+  uint8_t  getTransportPriority() const { return m_T; }
+  uint16_t getPID() const { return m_PID; }
+  uint8_t  getTransportScramblingControl() const { return m_TSC; }
+  uint8_t  getAdaptationFieldControl() const { return m_AFC; }
+  uint8_t  getContinuityCounter() const { return m_CC; }
 
 public:
-  //TODO - derrived informations
-  //bool     hasAdaptationField() const { /*TODO*/ }
-  //bool     hasPayload        () const { /*TODO*/ }
+  //Done - derrived informations
+  bool     hasAdaptationField() const { return (m_AFC == 2 || m_AFC == 3); }
+  bool     hasPayload()         const { return (m_AFC == 1 || m_AFC == 3); }
 };
 
 //=============================================================================================================================================================================
