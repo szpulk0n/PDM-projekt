@@ -28,33 +28,30 @@ int32_t xTS_PacketHeader::Parse(const uint8_t* Input)
   if (Input == nullptr) return NOT_VALID;
 
   //i`m not empty :>>>
-  // 1. Odczytujemy 4 bajty i zamieniamy kolejność (Big-Endian -> Little-Endian)
-  // Używamy castowania na uint32_t*, aby pobrać cały nagłówek naraz
-  uint32_t Header32 = xSwapBytes32(*(const uint32_t*)Input);
-
-  // 2. Wyodrębniamy pola za pomocą operacji bitowych zgodnie ze specyfikacją
-  // b31-b24: Sync Byte (8 bitów)
+  const uint32_t* HeadPtr = (const uint32_t*)Input;
+  uint32_t Header32 = xSwapBytes32(*HeadPtr);
+  // Sync Byte 8
   m_SB  = (Header32 >> 24) & 0xFF;
   
-  // b23: Transport Error Indicator (1 bit)
+  // Transport Error Indicator 1
   m_E   = (Header32 >> 23) & 0x01;
   
-  // b22: Payload Unit Start Indicator (1 bit)
+  // Payload Unit Start Indicator
   m_S   = (Header32 >> 22) & 0x01;
   
-  // b21: Transport Priority (1 bit)
+  // Transport Priority
   m_T   = (Header32 >> 21) & 0x01;
   
-  // b20-b8: Packet Identifier (PID) (13 bitów)
+  // Packet Identifier
   m_PID = (Header32 >> 8) & 0x1FFF;
   
-  // b7-b6: Transport Scrambling Control (2 bity)
+  // Transport Scrambling Control
   m_TSC = (Header32 >> 6) & 0x03;
   
-  // b5-b4: Adaptation Field Control (2 bity)
+  // Adaptation Field Control
   m_AFC = (Header32 >> 4) & 0x03;
   
-  // b3-b0: Continuity Counter (4 bity)
+  // Continuity Counter
   m_CC  = (Header32 >> 0) & 0x0F;
 
   return xTS::TS_HeaderLength; // Zwracamy 4 (liczba sparsowanych bajtów)
@@ -63,9 +60,6 @@ int32_t xTS_PacketHeader::Parse(const uint8_t* Input)
 /// @brief Print all TS packet header fields
 void xTS_PacketHeader::Print() const
 {
-  
-  // Wyświetlamy wszystkie pola nagłówka w jednej linii
-  // %02x dla Sync Byte (hex), %4d dla PID (dziesiętnie)
   printf("TS: SB:%02x E:%d S:%d T:%d PID:%4d TSC:%d AF:%d CC:%2d", 
          m_SB, m_E, m_S, m_T, m_PID, m_TSC, m_AFC, m_CC);
 }
