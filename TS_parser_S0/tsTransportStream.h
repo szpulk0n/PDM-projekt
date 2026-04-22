@@ -100,3 +100,25 @@ public:
 };
 
 //=============================================================================================================================================================================
+
+//KLASA FIATA
+class xTS_AdaptationField{
+  protected:
+    //setup
+    uint8_t m_AdaptationFieldControl;
+
+    //mandatory fields
+    uint8_t m_AdaptationFieldLength;
+
+  //optional firlds - PCR
+  public:
+    void Reset();
+    int32_t Parse(const uint8_t* PacketBuffer, uint8_t AdaptationFieldControl);
+    void Print() const;
+  public:
+  //mandatory fields
+  uint8_t getAdaptationFieldLength () const {
+    return m_AdaptationFieldControl;
+  }
+  
+};

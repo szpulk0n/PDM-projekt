@@ -64,4 +64,22 @@ void xTS_PacketHeader::Print() const
          m_SB, m_E, m_S, m_T, m_PID, m_TSC, m_AFC, m_CC);
 }
 
-//=============================================================================================================================================================================
+// @brief Reset - reset all TS packet header fields
+void xTS_AdaptationField::Reset(){
+//reset
+}
+/**
+ * @brief Parse adaptation field
+ * @param PacketBuffer is pointer to buffer containing TS packet
+ * @param AdaptationFieldControl is value of Adapatation Field Control field of corresponding TS packet header
+ * @return Numer of parsed bytes (lengt of AF or -1 on failure)
+ */
+int32_t xTS_AdapationField::Parse(const uint8_t* PacketBuffer, uint8_t xTS_AdapationFieldControl){
+  //parsing
+}
+
+//@brief Print all TS packet header fields
+void xTS_AdaptationField::Print() const{
+  //print print print
+}
+
