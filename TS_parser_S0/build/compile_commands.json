@@ -1,0 +1,12 @@
+[
+{
+  "directory": "/home/lab/Documents/PDM-projekt/TS_parser_S0/build",
+  "command": "/usr/bin/g++    -Wall -Wextra -Wpedantic -g -fPIE -std=gnu++17 -o CMakeFiles/TS-PARSER.dir/tsTransportStream.cpp.o -c /home/lab/Documents/PDM-projekt/TS_parser_S0/tsTransportStream.cpp",
+  "file": "/home/lab/Documents/PDM-projekt/TS_parser_S0/tsTransportStream.cpp"
+},
+{
+  "directory": "/home/lab/Documents/PDM-projekt/TS_parser_S0/build",
+  "command": "/usr/bin/g++    -Wall -Wextra -Wpedantic -g -fPIE -std=gnu++17 -o CMakeFiles/TS-PARSER.dir/TS_parser.cpp.o -c /home/lab/Documents/PDM-projekt/TS_parser_S0/TS_parser.cpp",
+  "file": "/home/lab/Documents/PDM-projekt/TS_parser_S0/TS_parser.cpp"
+}
+]
