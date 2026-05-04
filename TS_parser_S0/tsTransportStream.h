@@ -1,6 +1,7 @@
 #pragma once
 #include "tsCommon.h"
 #include <string>
+#include <cstdint>
 
 /*
 MPEG-TS packet:
@@ -109,6 +110,9 @@ class xTS_AdaptationField{
 
     //mandatory fields
     uint8_t m_AdaptationFieldLength;
+    
+    //flags
+    uint8_t m_DC, m_RA, m_SP, m_PR, m_OR, m_SF, m_TP, m_EX;
 
   //optional firlds - PCR
   public:
@@ -118,7 +122,77 @@ class xTS_AdaptationField{
   public:
   //mandatory fields
   uint8_t getAdaptationFieldLength () const {
-    return m_AdaptationFieldControl;
+    return m_AdaptationFieldLength;
   }
   
+};
+
+// ===========================================================================
+// xPES_PacketHeader
+// ===========================================================================
+class xPES_PacketHeader
+{
+protected:
+    // Podstawowe pola nagłówka PES (łącznie 6 bajtów)
+    uint32_t m_PacketStartCodePrefix; // 24 bity
+    uint8_t  m_StreamId;              // 8 bitów
+    uint16_t m_PacketLength;          // 16 bitów
+
+public:
+    void     Reset();
+    int32_t  Parse(const uint8_t* Input);
+    void     Print() const;
+
+public:
+    // Gettery do odczytu sparsowanych wartości
+    uint32_t getPacketStartCodePrefix() const { return m_PacketStartCodePrefix; }
+    uint8_t  getStreamId()              const { return m_StreamId; }
+    uint16_t getPacketLength()          const { return m_PacketLength; }
+};
+
+// ===========================================================================
+// xPES_Assembler
+// ===========================================================================
+class xPES_Assembler
+{
+public:
+    enum class eResult : int32_t
+    {
+        UnexpectedPID      = -1,
+        StreamPackedLost   = -2,
+        AssemblingStarted  =  1,
+        AssemblingContinue =  2,
+        AssemblingFinished =  3,
+    };
+
+protected:
+    // setup
+    int32_t m_PID;
+
+    // buffer
+    uint8_t* m_Buffer;
+    uint32_t m_BufferSize;
+    uint32_t m_DataOffset;
+
+    // operation
+    int8_t   m_LastContinuityCounter;
+    bool     m_Started;
+    xPES_PacketHeader m_PESH;
+    uint32_t m_LastPacketSize;
+
+public:
+    xPES_Assembler();
+    ~xPES_Assembler();
+
+    void    Init(int32_t PID);
+    eResult AbsorbPacket(const uint8_t* TransportStreamPacket, const xTS_PacketHeader* PacketHeader, const xTS_AdaptationField* AdaptationField);
+
+    void    PrintPESH() const { m_PESH.Print(); }
+    uint8_t* getPacket()      { return m_Buffer; }
+    int32_t getNumPacketBytes() const { return m_DataOffset; }
+    int32_t getLastPacketSize() const { return m_LastPacketSize; }
+
+protected:
+    void xBufferReset();
+    void xBufferAppend(const uint8_t* Data, int32_t Size);
 };
