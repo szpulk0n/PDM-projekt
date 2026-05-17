@@ -133,10 +133,11 @@ class xTS_AdaptationField{
 class xPES_PacketHeader
 {
 protected:
-    // Podstawowe pola nagłówka PES (łącznie 6 bajtów)
-    uint32_t m_PacketStartCodePrefix; // 24 bity
-    uint8_t  m_StreamId;              // 8 bitów
-    uint16_t m_PacketLength;          // 16 bitów
+    uint32_t m_PacketStartCodePrefix; 
+    uint8_t  m_StreamId;              
+    uint16_t m_PacketLength;          
+    uint8_t  m_PES_header_data_length; 
+    uint32_t m_TotalHeaderLength;      
 
 public:
     void     Reset();
@@ -144,10 +145,10 @@ public:
     void     Print() const;
 
 public:
-    // Gettery do odczytu sparsowanych wartości
     uint32_t getPacketStartCodePrefix() const { return m_PacketStartCodePrefix; }
     uint8_t  getStreamId()              const { return m_StreamId; }
     uint16_t getPacketLength()          const { return m_PacketLength; }
+    uint32_t getTotalHeaderLength()     const { return m_TotalHeaderLength; }
 };
 
 // ===========================================================================
@@ -156,8 +157,7 @@ public:
 class xPES_Assembler
 {
 public:
-    enum class eResult : int32_t
-    {
+    enum class eResult : int32_t {
         UnexpectedPID      = -1,
         StreamPackedLost   = -2,
         AssemblingStarted  =  1,
@@ -166,19 +166,17 @@ public:
     };
 
 protected:
-    // setup
     int32_t m_PID;
-
-    // buffer
     uint8_t* m_Buffer;
     uint32_t m_BufferSize;
     uint32_t m_DataOffset;
-
-    // operation
     int8_t   m_LastContinuityCounter;
     bool     m_Started;
     xPES_PacketHeader m_PESH;
+    
+    // Krok 4b - Poprawka trzasków (przechowywanie danych ukończonego pakietu)
     uint32_t m_LastPacketSize;
+    uint32_t m_LastHeaderLen;
 
 public:
     xPES_Assembler();
@@ -190,7 +188,10 @@ public:
     void    PrintPESH() const { m_PESH.Print(); }
     uint8_t* getPacket()      { return m_Buffer; }
     int32_t getNumPacketBytes() const { return m_DataOffset; }
-    int32_t getLastPacketSize() const { return m_LastPacketSize; }
+    
+    // Gettery dla main (bezpieczne, bo m_Last... nie zmieniają się przy starcie nowego pakietu)
+    uint32_t getLastPacketSize() const { return m_LastPacketSize; }
+    uint32_t getLastHeaderLen()  const { return m_LastHeaderLen; }
 
 protected:
     void xBufferReset();

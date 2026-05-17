@@ -11,6 +11,9 @@ int main(int argc, char *argv[ ], char *envp[ ])
     return EXIT_FAILURE;
   }
 
+  // Otwarcie pliku wyjściowego dla fonii (Krok 4a)
+  FILE* pFileOut = fopen("PID136.mp2", "wb"); // plik otwarty w trybie binarnym 
+
   xTS_PacketHeader    TS_PacketHeader;
   xTS_AdaptationField TS_PacketAdaptationField; 
   uint8_t             TS_PacketBuffer[xTS::TS_PacketLength];
@@ -46,12 +49,19 @@ int main(int argc, char *argv[ ], char *envp[ ])
         case xPES_Assembler::eResult::AssemblingStarted: printf(" Started"); PES_Assembler.PrintPESH(); break;
         case xPES_Assembler::eResult::AssemblingContinue: printf(" Continue"); break;
         case xPES_Assembler::eResult::AssemblingFinished: 
-            printf(" Finished PES: Len=%d", PES_Assembler.getLastPacketSize()); 
-            printf("\n%010d ", TS_PacketId);
-            TS_PacketHeader.Print();
-            if (TS_PacketHeader.hasAdaptationField()) { TS_PacketAdaptationField.Print(); }
-            printf(" Started"); PES_Assembler.PrintPESH();
-            break;
+{
+    // Pobieramy parametry ukończonego właśnie pakietu
+        uint32_t headLen = PES_Assembler.getLastHeaderLen();
+        uint32_t dataLen = PES_Assembler.getLastPacketSize() - headLen;
+
+        printf(" Finished PES: Len=%d", PES_Assembler.getLastPacketSize()); 
+
+          // Zapisujemy czyste dane ES do pliku
+           if(pFileOut && dataLen > 0) {
+            fwrite(PES_Assembler.getPacket() + headLen, 1, dataLen, pFileOut);
+          }
+        }
+        break;
         default: break;
       }
       printf("\n");
@@ -63,6 +73,9 @@ int main(int argc, char *argv[ ], char *envp[ ])
     
     TS_PacketId++;
   }
+
+  // Zamknięcie plików
+  if(pFileOut) fclose(pFileOut); // 
   //Done close file
   fclose(pFile);
 
