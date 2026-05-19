@@ -146,7 +146,7 @@ int32_t xPES_PacketHeader::Parse(const uint8_t* Input)
 
 void xPES_PacketHeader::Print() const
 {
-    // Obliczenia zgodnie ze slajdem 6 prezentacji S4
+    // Obliczenia zgodnie ze slajdem 
     uint32_t PcktLen = m_PacketLength + 6;
     uint32_t DataLen = m_PacketLength - (m_TotalHeaderLength - 6);
 
@@ -188,8 +188,7 @@ xPES_Assembler::eResult xPES_Assembler::AbsorbPacket(const uint8_t* TS_Packet, c
             m_LastPacketSize = m_DataOffset;
             m_LastHeaderLen = m_PESH.getTotalHeaderLength();
             // Nie resetujemy jeszcze - zwracamy Finished, a ten pakiet S=1 
-            // przetworzymy w następnym wywołaniu (wymaga obsługi w main)
-            // Jednak dla fonii (PID 136) lepsza jest logika naturalnego końca (punkt 2 poniżej).
+            // przetworzymy w następnym wywołaniu 
         }
 
         uint32_t offset = 4 + (PH->hasAdaptationField() ? 1 + AF->getAdaptationFieldLength() : 0);
@@ -211,7 +210,7 @@ xPES_Assembler::eResult xPES_Assembler::AbsorbPacket(const uint8_t* TS_Packet, c
         xBufferAppend(TS_Packet + offset, 188 - offset);
         m_LastContinuityCounter = PH->getContinuityCounter();
 
-        // LOGIKA KROKU 4: Sprawdzamy czy osiągnęliśmy koniec pakietu na podstawie długości L
+        // sprawdzamy czy osiągnęliśmy koniec pakietu na podstawie długości L
         if (m_PESH.getPacketLength() != 0) {
             uint32_t expectedTotal = m_PESH.getPacketLength() + 6;
             if (m_DataOffset >= expectedTotal) {
