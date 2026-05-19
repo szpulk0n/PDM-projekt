@@ -5,7 +5,6 @@
 // xTS_PacketHeader
 //=============================================================================================================================================================================
 
-
 /// @brief Reset - reset all TS packet header fields
 void xTS_PacketHeader::Reset()
 {
@@ -28,32 +27,18 @@ int32_t xTS_PacketHeader::Parse(const uint8_t* Input)
 {
   if (Input == nullptr) return -1;
 
-  //i`m not empty :>>>
+  // Sklejenie 4 bajtów nagłówka w jedną 32-bitową zmienną dla ułatwienia przesunięć bitowych
   uint32_t Header32 = (Input[0] << 24) | (Input[1] << 16) | (Input[2] << 8) | Input[3];
   
-  // Sync Byte 8
-  m_SB  = (Header32 >> 24) & 0xFF;
-  
-  // Transport Error Indicator 1
-  m_E   = (Header32 >> 23) & 0x01;
-  
-  // Payload Unit Start Indicator
-  m_S   = (Header32 >> 22) & 0x01;
-  
-  // Transport Priority
-  m_T   = (Header32 >> 21) & 0x01;
-  
-  // Packet Identifier
-  m_PID = (Header32 >> 8) & 0x1FFF;
-  
-  // Transport Scrambling Control
-  m_TSC = (Header32 >> 6) & 0x03;
-  
-  // Adaptation Field Control
-  m_AFC = (Header32 >> 4) & 0x03;
-  
-  // Continuity Counter
-  m_CC  = (Header32 >> 0) & 0x0F;
+  // Wyodrębnianie poszczególnych pól za pomocą przesunięć i masek bitowych
+  m_SB  = (Header32 >> 24) & 0xFF;   // Sync Byte (8 bitów)
+  m_E   = (Header32 >> 23) & 0x01;   // Transport Error Indicator (1 bit)
+  m_S   = (Header32 >> 22) & 0x01;   // Payload Unit Start Indicator (1 bit)
+  m_T   = (Header32 >> 21) & 0x01;   // Transport Priority (1 bit)
+  m_PID = (Header32 >> 8)  & 0x1FFF; // Packet Identifier (13 bitów)
+  m_TSC = (Header32 >> 6)  & 0x03;   // Transport Scrambling Control (2 bity)
+  m_AFC = (Header32 >> 4)  & 0x03;   // Adaptation Field Control (2 bity)
+  m_CC  = (Header32 >> 0)  & 0x0F;   // Continuity Counter (4 bity)
 
   return xTS::TS_HeaderLength; 
 }
@@ -70,6 +55,7 @@ void xTS_AdaptationField::Reset(){
   m_AdaptationFieldLength = 0;
   m_DC = m_RA = m_SP = m_PR = m_OR = m_SF = m_TP = m_EX = 0;
 }
+
 /**
  * @brief Parse adaptation field
  * @param PacketBuffer is pointer to buffer containing TS packet
@@ -77,10 +63,13 @@ void xTS_AdaptationField::Reset(){
  * @return Numer of parsed bytes (lengt of AF or -1 on failure)
  */
 int32_t xTS_AdaptationField::Parse(const uint8_t* PacketBuffer, uint8_t AdaptationFieldControl){
+  // Pole adaptacyjne występuje tylko dla AFC równego 2 lub 3
   if (AdaptationFieldControl != 2 && AdaptationFieldControl != 3) return 0;
 
+  // Długość AF znajduje się w 5. bajcie pakietu
   m_AdaptationFieldLength = PacketBuffer[4];
   
+  // Odczyt flag z 6. bajtu, jeśli pole adaptacyjne nie jest puste
   if (m_AdaptationFieldLength > 0)
   {
     uint8_t flags = PacketBuffer[5];
@@ -99,7 +88,6 @@ int32_t xTS_AdaptationField::Parse(const uint8_t* PacketBuffer, uint8_t Adaptati
 
 //@brief Print all TS packet header fields
 void xTS_AdaptationField::Print() const{
-  //print print print
   printf(" AF: L=%3d DC=%d RA=%d SP=%d PR=%d OR=%d SF=%d TP=%d EX=%d", 
          m_AdaptationFieldLength, m_DC, m_RA, m_SP, m_PR, m_OR, m_SF, m_TP, m_EX);
 }
@@ -119,18 +107,18 @@ void xPES_PacketHeader::Reset()
 
 int32_t xPES_PacketHeader::Parse(const uint8_t* Input)
 {
-    // Podstawowe pola (6 bajtów)
+    // Odczyt bazowej części nagłówka PES (pierwsze 6 bajtów)
     m_PacketStartCodePrefix = (Input[0] << 16) | (Input[1] << 8) | Input[2];
     m_StreamId = Input[3];
     m_PacketLength = (Input[4] << 8) | Input[5];
 
     // Logika wyznaczania długości nagłówka (MPEG-TS-S4 slajd 5)
-    // Sprawdzamy StreamId, aby wiedzieć czy występuje rozszerzenie (3 bajty + PES_header_data_length)
+    // Wykluczamy identyfikatory strumieni (np. padding stream), które nie posiadają rozszerzenia
     if (m_StreamId != 0xBC && m_StreamId != 0xBE && m_StreamId != 0xBF &&
         m_StreamId != 0xF0 && m_StreamId != 0xF1 && m_StreamId != 0xFF &&
         m_StreamId != 0xF2 && m_StreamId != 0xF8)
     {
-        // PES_header_data_length znajduje się na 9-tym bajcie (indeks 8)
+        // Długość rozszerzenia PES_header_data_length znajduje się na 9. bajcie (indeks 8)
         m_PES_header_data_length = Input[8];
         // Całkowita długość nagłówka: 6B (podstawa) + 3B (flagi i bajt długości) + dane dodatkowe
         m_TotalHeaderLength = 6 + 3 + m_PES_header_data_length;
@@ -146,7 +134,7 @@ int32_t xPES_PacketHeader::Parse(const uint8_t* Input)
 
 void xPES_PacketHeader::Print() const
 {
-    // Obliczenia zgodnie ze slajdem 
+    // Obliczenia zgodnie ze slajdem 6 prezentacji S4
     uint32_t PcktLen = m_PacketLength + 6;
     uint32_t DataLen = m_PacketLength - (m_TotalHeaderLength - 6);
 
@@ -167,6 +155,7 @@ void xPES_Assembler::Init(int32_t PID) { m_PID = PID; xBufferReset(); }
 void xPES_Assembler::xBufferReset() { m_DataOffset = 0; m_Started = false; m_LastContinuityCounter = -1; }
 
 void xPES_Assembler::xBufferAppend(const uint8_t* Data, int32_t Size) {
+    // Alokacja z dużym zapasem (64KB), aby uniknąć częstego relokowania pamięci przy każdym pakiecie 188B
     if (m_DataOffset + Size > m_BufferSize) {
         uint32_t NewSize = m_BufferSize + Size + 65536; 
         uint8_t* NewBuffer = new uint8_t[NewSize];
@@ -180,47 +169,51 @@ void xPES_Assembler::xBufferAppend(const uint8_t* Data, int32_t Size) {
 xPES_Assembler::eResult xPES_Assembler::AbsorbPacket(const uint8_t* TS_Packet, const xTS_PacketHeader* PH, const xTS_AdaptationField* AF) {
     if (PH->getPID() != m_PID) return eResult::UnexpectedPID;
 
-    // 1. Obsługa Startu (S=1)
+    // 1. Początek nowej ramki (PUSI = 1)
     if (PH->getPayloadUnitStartIndicator()) {
-        // Jeśli już coś składaliśmy, a nie skończyliśmy naturalnie (np. wideo L=0),
-        // to teraz musimy wymusić koniec przed nadpisaniem bufora.
+        
+        // Zapisujemy metadane poprzedniej ramki na wypadek, gdyby nie zakończyła się naturalnie
         if (m_Started) {
             m_LastPacketSize = m_DataOffset;
             m_LastHeaderLen = m_PESH.getTotalHeaderLength();
-            // Nie resetujemy jeszcze - zwracamy Finished, a ten pakiet S=1 
-            // przetworzymy w następnym wywołaniu 
         }
 
+        // Obliczenie przesunięcia: pomijamy nagłówek TS (4B) i ewentualne pole adaptacyjne
         uint32_t offset = 4 + (PH->hasAdaptationField() ? 1 + AF->getAdaptationFieldLength() : 0);
         xBufferReset();
         m_PESH.Parse(TS_Packet + offset);
+        
         xBufferAppend(TS_Packet + offset, 188 - offset);
         m_Started = true;
         m_LastContinuityCounter = PH->getContinuityCounter();
+        
         return eResult::AssemblingStarted;
     }
 
-    // 2. Obsługa kontynuacji (S=0)
+    // 2. Kontynuacja składania ramki (PUSI = 0)
     if (m_Started) {
+        // Weryfikacja ciągłości przesyłu - operacja modulo 16 zapobiega błędom przy przekręceniu licznika
         if (((m_LastContinuityCounter + 1) & 0x0F) != PH->getContinuityCounter()) {
-            xBufferReset(); return eResult::StreamPackedLost;
+            xBufferReset(); 
+            return eResult::StreamPackedLost;
         }
 
         uint32_t offset = 4 + (PH->hasAdaptationField() ? 1 + AF->getAdaptationFieldLength() : 0);
         xBufferAppend(TS_Packet + offset, 188 - offset);
         m_LastContinuityCounter = PH->getContinuityCounter();
 
-        // sprawdzamy czy osiągnęliśmy koniec pakietu na podstawie długości L
+        // Krok 4: Sprawdzenie, czy zebrano już całą zadeklarowaną długość ramki PES
         if (m_PESH.getPacketLength() != 0) {
             uint32_t expectedTotal = m_PESH.getPacketLength() + 6;
             if (m_DataOffset >= expectedTotal) {
                 m_LastPacketSize = m_DataOffset;
                 m_LastHeaderLen = m_PESH.getTotalHeaderLength();
-                m_Started = false; // Koniec składania tego pakietu PES
+                m_Started = false; 
                 return eResult::AssemblingFinished;
             }
         }
         return eResult::AssemblingContinue;
     }
+    
     return eResult::UnexpectedPID;
 }
