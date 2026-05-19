@@ -22,24 +22,15 @@ MPEG-TS packet header:
 `     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ `
 `   0 |       SB      |E|S|T|           PID           |TSC|AFC|   CC  | `
 `     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ `
-
-Sync byte                    (SB ) :  8 bits
-Transport error indicator    (E  ) :  1 bit
-Payload unit start indicator (S  ) :  1 bit
-Transport priority           (T  ) :  1 bit
-Packet Identifier            (PID) : 13 bits
-Transport scrambling control (TSC) :  2 bits
-Adaptation field control     (AFC) :  2 bits
-Continuity counter           (CC ) :  4 bits
 */
-
 
 //=============================================================================================================================================================================
 
+// Główne stałe z dokumentacji MPEG-TS
 class xTS
 {
 public:
-  static constexpr uint32_t TS_PacketLength  = 188;
+  static constexpr uint32_t TS_PacketLength  = 188; // Podstawa - rozmiar jednego pakietu TS
   static constexpr uint32_t TS_HeaderLength  = 4;
 
   static constexpr uint32_t PES_HeaderLength = 6;
@@ -53,29 +44,33 @@ public:
 
 //=============================================================================================================================================================================
 
+// Dekoder nagłówka TS (pierwsze 4 bajty z każdych 188)
 class xTS_PacketHeader
 {
 public:
+  // Predefiniowane PID-y tablic systemowych. 
+  // Strumienie audio/wideo dostają dynamiczne PID-y (u nas audio ma 136).
   enum class ePID : uint16_t
   {
     PAT  = 0x0000,
     CAT  = 0x0001,
     TSDT = 0x0002,
     IPMT = 0x0003,
-    NIT  = 0x0010, //DVB specific PID
-    SDT  = 0x0011, //DVB specific PID
+    NIT  = 0x0010, 
+    SDT  = 0x0011, 
     NuLL = 0x1FFF,
   };
 
 protected:
-  uint8_t  m_SB;  // Sync Byte
+  // Poszczególne pola nagłówka wyciągane bitowo (maskami) z pierwszych 4 bajtów
+  uint8_t  m_SB;  // Sync Byte (zawsze 0x47)
   uint8_t  m_E;   // Transport Error Indicator
-  uint8_t  m_S;   // Payload Unit Start Indicator
+  uint8_t  m_S;   // PUSI - jeśli 1, to w tym pakiecie zaczyna się nowa ramka PES
   uint8_t  m_T;   // Transport Priority
-  uint16_t m_PID; // Packet Identifier
+  uint16_t m_PID; // Packet Identifier - po tym filtrujemy to, co nas interesuje (np. 136)
   uint8_t  m_TSC; // Transport Scrambling Control
-  uint8_t  m_AFC; // Adaptation Field Control
-  uint8_t  m_CC;  // Continuity Counter
+  uint8_t  m_AFC; // Adaptation Field Control - określa co jest dalej w pakiecie
+  uint8_t  m_CC;  // Continuity Counter (0-15) - sprawdzamy czy nie zgubiliśmy pakietu
 
 public:
   void     Reset();
@@ -83,7 +78,6 @@ public:
   void     Print() const;
 
 public:
-  //Done - direct acces to header field value, e.g.:
   // Gettery
   uint8_t  getSyncByte() const { return m_SB; }
   uint8_t  getTransportErrorIndicator() const { return m_E; }
@@ -95,49 +89,48 @@ public:
   uint8_t  getContinuityCounter() const { return m_CC; }
 
 public:
-  //Done - derrived informations
+  // Helpery do wygodnego sprawdzania stanu AFC
   bool     hasAdaptationField() const { return (m_AFC == 2 || m_AFC == 3); }
   bool     hasPayload()         const { return (m_AFC == 1 || m_AFC == 3); }
 };
 
 //=============================================================================================================================================================================
 
-//KLASA FIATA
+// Opcjonalne pole adaptacyjne. Służy głownie do upychania (stuffing), gdy pakiet ma mniej 
+// użytecznych danych niż wynosi stała wielkość 188B.
 class xTS_AdaptationField{
   protected:
-    //setup
     uint8_t m_AdaptationFieldControl;
 
-    //mandatory fields
+    // Długość AF - potrzebujemy tego żeby wiedzieć, o ile bajtów przeskoczyć w przód do danych użytecznych
     uint8_t m_AdaptationFieldLength;
     
-    //flags
+    // Pojedyncze flagi (odczytywane przsunieciami bitowymi)
     uint8_t m_DC, m_RA, m_SP, m_PR, m_OR, m_SF, m_TP, m_EX;
 
-  //optional firlds - PCR
   public:
     void Reset();
     int32_t Parse(const uint8_t* PacketBuffer, uint8_t AdaptationFieldControl);
     void Print() const;
   public:
-  //mandatory fields
   uint8_t getAdaptationFieldLength () const {
     return m_AdaptationFieldLength;
   }
-  
 };
 
 // ===========================================================================
 // xPES_PacketHeader
 // ===========================================================================
+
+// Nagłówek paczek PES. W przeciwieństwie do TS, ten nagłówek ma zmienną długość.
 class xPES_PacketHeader
 {
 protected:
-    uint32_t m_PacketStartCodePrefix; 
-    uint8_t  m_StreamId;              
-    uint16_t m_PacketLength;          
-    uint8_t  m_PES_header_data_length; 
-    uint32_t m_TotalHeaderLength;      
+    uint32_t m_PacketStartCodePrefix; // Zawsze 0x000001
+    uint8_t  m_StreamId;              // Typ strumienia (np. audio)
+    uint16_t m_PacketLength;          // Deklarowany rozmiar danych (0 dla wideo)
+    uint8_t  m_PES_header_data_length; // Długość opcjonalnej sekcji nagłówka PES
+    uint32_t m_TotalHeaderLength;      // Całkowita długość, żeby wiedzieć od którego bajtu zacząć czytać właściwe audio/wideo
 
 public:
     void     Reset();
@@ -154,27 +147,31 @@ public:
 // ===========================================================================
 // xPES_Assembler
 // ===========================================================================
+
+// Skleja payloady wyciągnięte z małych pakietów TS (188B) w całe, ciągłe ramki PES.
 class xPES_Assembler
 {
 public:
+    // Status zwracany po każdym przerobionym pakiecie TS. 
+    // Mówi głównej pętli w main() na jakim etapie klejenia ramki jesteśmy.
     enum class eResult : int32_t {
-        UnexpectedPID      = -1,
-        StreamPackedLost   = -2,
-        AssemblingStarted  =  1,
-        AssemblingContinue =  2,
-        AssemblingFinished =  3,
+        UnexpectedPID      = -1, // Pakiet odrzucony (inny PID niż chcemy)
+        StreamPackedLost   = -2, // Błąd licznika CC (zgubiliśmy dane po drodze)
+        AssemblingStarted  =  1, // Znaleziono start nowej ramki
+        AssemblingContinue =  2, // Środek ramki - dopisano dane do bufora
+        AssemblingFinished =  3, // Koniec ramki - można zapisywać plik na dysk
     };
 
 protected:
-    int32_t m_PID;
-    uint8_t* m_Buffer;
-    uint32_t m_BufferSize;
-    uint32_t m_DataOffset;
-    int8_t   m_LastContinuityCounter;
-    bool     m_Started;
-    xPES_PacketHeader m_PESH;
+    int32_t m_PID;                // PID, który aktualnie wyodrębniamy
+    uint8_t* m_Buffer;            // Pamięć, gdzie doklejane są po kolei bajty danych
+    uint32_t m_BufferSize;        
+    uint32_t m_DataOffset;        // Ile bajtów już jest w buforze
+    int8_t   m_LastContinuityCounter; 
+    bool     m_Started;           // Flaga, żeby nie zacząć zbierać danych od środka ramki
+    xPES_PacketHeader m_PESH;     
     
-    // Krok 4b - Poprawka trzasków (przechowywanie danych ukończonego pakietu)
+    // Zmienne do obsługi problemu z nadpisywaniem bufora (zabezpieczenie przed trzaskami w audio)
     uint32_t m_LastPacketSize;
     uint32_t m_LastHeaderLen;
 
@@ -183,13 +180,15 @@ public:
     ~xPES_Assembler();
 
     void    Init(int32_t PID);
+    
+    // Główna funkcja sklejająca. Dokleja zawartość pakietu do m_Buffer.
     eResult AbsorbPacket(const uint8_t* TransportStreamPacket, const xTS_PacketHeader* PacketHeader, const xTS_AdaptationField* AdaptationField);
 
     void    PrintPESH() const { m_PESH.Print(); }
     uint8_t* getPacket()      { return m_Buffer; }
     int32_t getNumPacketBytes() const { return m_DataOffset; }
     
-    // Gettery dla main (bezpieczne, bo m_Last... nie zmieniają się przy starcie nowego pakietu)
+    // Bezpieczny odczyt informacji o poprzednim pakiecie dla pętli głównej
     uint32_t getLastPacketSize() const { return m_LastPacketSize; }
     uint32_t getLastHeaderLen()  const { return m_LastHeaderLen; }
 
